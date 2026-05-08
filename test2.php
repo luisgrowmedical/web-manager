@@ -1,0 +1,1 @@
+<?php require_once 'config/database.php'; require_once 'app/helpers/functions.php'; require_once 'app/controllers/SiteController.php'; session_start(); $_SESSION['user_id'] = 1; $_SESSION['role'] = 'admin'; $c = new SiteController($pdo); $c->index();

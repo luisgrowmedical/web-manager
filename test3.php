@@ -1,0 +1,1 @@
+<?php require_once 'config/database.php'; $stmt = $pdo->query("SELECT s.id, s.name, s.url, s.api_key, s.country, s.state, s.city, s.specialty, s.last_sync, m.pages_count, m.posts_count, m.drafts_count, m.site_weight, m.images_count, m.updates_count, m.sync_date FROM sites s LEFT JOIN site_metrics m ON s.id = m.site_id"); echo 'Success!'; 
