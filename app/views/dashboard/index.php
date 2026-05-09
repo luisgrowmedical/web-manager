@@ -49,21 +49,21 @@ $multisite_networks = $multisite_networks ?? [];
 ?>
 
 <div class="updates-summary-grid">
-    <div class="stat-card">
+    <div class="stat-card stat-card-updates">
         <div class="stat-label">Available Updates</div>
         <div class="stat-value <?php echo ($stats['total_updates'] ?? 0) > 0 ? 'stat-danger' : ''; ?>">
             <?php echo number_format($stats['total_updates'] ?? 0); ?>
         </div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card-plugins">
         <div class="stat-label">Plugins</div>
         <div class="stat-value <?php echo $plugin_updates_total > 0 ? 'stat-danger' : ''; ?>"><?php echo number_format($plugin_updates_total); ?></div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card-themes">
         <div class="stat-label">Themes</div>
         <div class="stat-value <?php echo $theme_updates_total > 0 ? 'stat-danger' : ''; ?>"><?php echo number_format($theme_updates_total); ?></div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card stat-card-wordpress">
         <div class="stat-label">WordPress</div>
         <div class="stat-value <?php echo $wordpress_updates_total > 0 ? 'stat-danger' : ''; ?>"><?php echo number_format($wordpress_updates_total); ?></div>
     </div>

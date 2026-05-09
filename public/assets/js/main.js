@@ -60,7 +60,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     enhanceCountrySelects();
     initDashboardUpdatesModule();
+    initAvatarPreview();
 });
+
+function initAvatarPreview() {
+    document.querySelectorAll('[data-avatar-preview]').forEach(input => {
+        input.addEventListener('change', () => {
+            if (!input.files || !input.files[0]) {
+                return;
+            }
+
+            const label = document.querySelector(`.upload-button[for="${input.id}"]`);
+            if (!label) {
+                return;
+            }
+
+            label.textContent = `Selected: ${input.files[0].name}`;
+            label.classList.add('is-selected');
+        });
+    });
+}
 
 function initDashboardUpdatesModule() {
     const modules = document.querySelectorAll('[data-updates-module]');

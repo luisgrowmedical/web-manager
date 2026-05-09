@@ -11,7 +11,7 @@
             <?php endif; ?>
             <div class="form-group">
                 <label for="avatar" class="btn btn-outline upload-button">Change Photo</label>
-                <input type="file" name="avatar" id="avatar" class="file-input-hidden" accept="image/*">
+                <input type="file" name="avatar" id="avatar" class="file-input-hidden" accept="image/*" data-avatar-preview>
             </div>
         </div>
 
@@ -36,15 +36,3 @@
         </div>
     </form>
 </div>
-
-<script>
-    // Preview image before upload
-    document.getElementById('avatar').addEventListener('change', function(e) {
-        if (this.files && this.files[0]) {
-            const label = document.querySelector('label[for="avatar"]');
-            label.textContent = 'Selected: ' + this.files[0].name;
-            label.style.background = '#dcfce7';
-            label.style.borderColor = '#bcf0da';
-        }
-    });
-</script>

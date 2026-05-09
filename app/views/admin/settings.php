@@ -50,7 +50,8 @@ $connector_update = $connector_update ?? ['available_version' => 'Unknown', 'out
                     </div>
                     <div class="form-group">
                         <label for="avatar">Profile Image</label>
-                        <input type="file" name="avatar" id="avatar" class="form-control" accept="image/*">
+                        <label for="avatar" class="btn btn-outline upload-button">Choose Image</label>
+                        <input type="file" name="avatar" id="avatar" class="file-input-hidden" accept="image/*" data-avatar-preview>
                         <small class="form-help">Optional. JPG, PNG, or GIF.</small>
                     </div>
                     <button type="submit" class="btn btn-primary btn-block">Create User</button>
@@ -108,7 +109,7 @@ $connector_update = $connector_update ?? ['available_version' => 'Unknown', 'out
         </div>
     </section>
 
-    <section class="card settings-section">
+    <section class="card settings-section connector-module">
         <div class="updates-module-header">
             <div>
                 <h2>Plugin Connector</h2>
