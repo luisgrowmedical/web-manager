@@ -11,21 +11,23 @@ class AdminController {
     }
 
     public function index() {
-        // Redirect to users management as default admin view
-        $this->users();
+        $this->settings();
+    }
+
+    public function settings() {
+        $users = $this->load_users();
+        $roles = $this->load_roles();
+        $sites = $this->load_sites_with_connector_versions();
+
+        view('admin/settings', [
+            'title' => 'Settings',
+            'users' => $users,
+            'roles' => $roles,
+            'connector_update' => $this->build_connector_update_status($sites)
+        ]);
     }
 
     public function users() {
-        $stmt = $this->db->query("
-            SELECT u.*, r.name as role_name 
-            FROM users u 
-            JOIN roles r ON u.role_id = r.id
-        ");
-        $users = $stmt->fetchAll();
-
-        $stmt = $this->db->query("SELECT * FROM roles");
-        $roles = $stmt->fetchAll();
-
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_user'])) {
             $username = $_POST['username'];
             $email = $_POST['email'];
@@ -57,7 +59,7 @@ class AdminController {
                 $stmt->execute([$username, $email, $password, $role_id, $avatar_path]);
                 
                 set_message("User created successfully!");
-                redirect('/web-manager/public/index.php?route=admin&action=users');
+                redirect('/web-manager/public/index.php?route=settings');
             } catch (PDOException $e) {
                 if ($e->getCode() == 23000) {
                     set_message("Username or Email already exists.", "error");
@@ -67,11 +69,7 @@ class AdminController {
             }
         }
 
-        view('admin/users', [
-            'title' => 'Manage Users',
-            'users' => $users,
-            'roles' => $roles
-        ]);
+        redirect('/web-manager/public/index.php?route=settings');
     }
 
     public function manageAccess($user_id) {
@@ -91,7 +89,7 @@ class AdminController {
                     $stmt->execute([$user_id, $site_id]);
                 }
             }
-            redirect('/web-manager/public/index.php?route=admin&action=users');
+            redirect('/web-manager/public/index.php?route=settings');
         }
 
         $stmt = $this->db->query("SELECT * FROM sites");
@@ -115,13 +113,119 @@ class AdminController {
         // Prevent deleting yourself
         if ($id == $_SESSION['user_id']) {
             set_message("You cannot delete your own account!", "error");
-            redirect('/web-manager/public/index.php?route=admin&action=users');
+            redirect('/web-manager/public/index.php?route=settings');
         }
 
         $stmt = $this->db->prepare("DELETE FROM users WHERE id = ?");
         $stmt->execute([$id]);
         
         set_message("User deleted successfully!");
-        redirect('/web-manager/public/index.php?route=admin&action=users');
+        redirect('/web-manager/public/index.php?route=settings');
+    }
+
+    private function load_users() {
+        $stmt = $this->db->query("
+            SELECT u.*, r.name as role_name 
+            FROM users u 
+            JOIN roles r ON u.role_id = r.id
+            ORDER BY u.username ASC
+        ");
+
+        return $stmt->fetchAll();
+    }
+
+    private function load_roles() {
+        $stmt = $this->db->query("SELECT * FROM roles ORDER BY name ASC");
+
+        return $stmt->fetchAll();
+    }
+
+    private function load_sites_with_connector_versions() {
+        $has_connector_version = $this->site_metrics_has_column('connector_version');
+        $connector_version_select = $has_connector_version ? ', m.connector_version' : ', NULL AS connector_version';
+        $connector_version_inner_select = $has_connector_version ? ', m1.connector_version' : '';
+
+        $stmt = $this->db->query("
+            SELECT s.* {$connector_version_select}
+            FROM sites s
+            LEFT JOIN (
+                SELECT m1.site_id {$connector_version_inner_select}
+                FROM site_metrics m1
+                INNER JOIN (
+                    SELECT site_id, MAX(id) as metric_id
+                    FROM site_metrics 
+                    GROUP BY site_id
+                ) m2 ON m1.id = m2.metric_id
+            ) m ON s.id = m.site_id
+            ORDER BY s.name ASC
+        ");
+
+        return $stmt->fetchAll();
+    }
+
+    private function site_metrics_has_column($column) {
+        static $columns = null;
+
+        if ($columns === null) {
+            $stmt = $this->db->query("SHOW COLUMNS FROM site_metrics");
+            $columns = array_column($stmt->fetchAll(), 'Field');
+        }
+
+        return in_array($column, $columns, true);
+    }
+
+    private function build_connector_update_status($sites) {
+        $available_version = $this->connector_available_version();
+        $items = [];
+        $outdated = 0;
+        $unknown = 0;
+
+        foreach ($sites as $site) {
+            $installed_version = $site['connector_version'] ?? null;
+            $status = 'ok';
+
+            if (!$installed_version) {
+                $status = 'unknown';
+                $unknown++;
+            } elseif ($available_version && version_compare($installed_version, $available_version, '<')) {
+                $status = 'outdated';
+                $outdated++;
+            }
+
+            $items[] = [
+                'site_id' => (int)$site['id'],
+                'site_name' => $site['name'],
+                'site_url' => $site['url'],
+                'installed_version' => $installed_version ?: 'Unknown',
+                'available_version' => $available_version ?: 'Unknown',
+                'status' => $status,
+                'last_sync' => $site['last_sync'] ?? null
+            ];
+        }
+
+        return [
+            'available_version' => $available_version ?: 'Unknown',
+            'outdated_count' => $outdated,
+            'unknown_count' => $unknown,
+            'sites' => $items
+        ];
+    }
+
+    private function connector_available_version() {
+        $file = dirname(__DIR__, 2) . '/wordpress-plugin/web-manager-connector/web-manager-connector.php';
+        if (!is_readable($file)) {
+            return null;
+        }
+
+        $contents = file_get_contents($file, false, null, 0, 8192);
+        if ($contents === false) {
+            return null;
+        }
+
+        if (preg_match('/^\s*\*\s*Version:\s*(.+)$/mi', $contents, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return null;
     }
 }

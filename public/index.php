@@ -16,6 +16,7 @@ require_once __DIR__ . '/../app/controllers/AuthController.php';
 require_once __DIR__ . '/../app/controllers/DashboardController.php';
 require_once __DIR__ . '/../app/controllers/SiteController.php';
 require_once __DIR__ . '/../app/controllers/AdminController.php';
+require_once __DIR__ . '/../app/controllers/ConnectorUpdateController.php';
 
 $route = $_GET['route'] ?? 'dashboard';
 $action = $_GET['action'] ?? 'index';
@@ -36,6 +37,15 @@ switch ($route) {
         $controller->logout();
         break;
 
+    case 'connector-update':
+        $controller = new ConnectorUpdateController($pdo);
+        if ($action === 'download') {
+            $controller->download();
+        } else {
+            $controller->manifest();
+        }
+        break;
+
     case 'dashboard':
         require_login();
         $controller = new DashboardController($pdo);
@@ -47,6 +57,12 @@ switch ($route) {
         require_once '../app/controllers/ProfileController.php';
         $controller = new ProfileController($pdo);
         $controller->index();
+        break;
+
+    case 'settings':
+        require_admin();
+        $controller = new AdminController($pdo);
+        $controller->settings();
         break;
 
     case 'sites':

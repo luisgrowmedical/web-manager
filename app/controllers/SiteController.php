@@ -198,17 +198,15 @@ class SiteController {
             $site_data = json_decode($response, true);
             
             if ($site_data && isset($site_data['site_url'])) {
-                // Save metrics
-                $stmt = $this->db->prepare("
-                    INSERT INTO site_metrics 
-                    (site_id, pages_count, posts_count, drafts_count, active_theme, themes_count, active_plugins_count, total_plugins_count, site_weight, images_count, updates_count, plugin_updates_count, theme_updates_count) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ");
                 $updates = $site_data['updates'] ?? 0;
                 $plugin_updates = is_array($updates) ? ($updates['plugins'] ?? 0) : ($site_data['plugin_updates'] ?? 0);
                 $theme_updates = is_array($updates) ? ($updates['themes'] ?? 0) : ($site_data['theme_updates'] ?? 0);
                 $total_updates = is_array($updates) ? ($updates['total'] ?? ($plugin_updates + $theme_updates)) : $updates;
-                $stmt->execute([
+                $pending_updates_data = is_array($updates) && isset($updates['details']) ? json_encode($updates['details']) : null;
+
+                $columns = "site_id, pages_count, posts_count, drafts_count, active_theme, themes_count, active_plugins_count, total_plugins_count, site_weight, images_count, updates_count, plugin_updates_count, theme_updates_count";
+                $placeholders = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
+                $values = [
                     $id,
                     $site_data['pages'],
                     $site_data['posts'],
@@ -222,7 +220,36 @@ class SiteController {
                     $total_updates,
                     $plugin_updates,
                     $theme_updates
-                ]);
+                ];
+
+                if ($this->site_metrics_has_column('connector_version')) {
+                    $columns .= ", connector_version";
+                    $placeholders .= ", ?";
+                    $values[] = $site_data['connector']['version'] ?? null;
+                }
+
+                if ($this->site_metrics_has_column('is_multisite')) {
+                    $multisite = is_array($site_data['multisite'] ?? null) ? $site_data['multisite'] : [];
+                    $columns .= ", is_multisite, multisite_network_name, multisite_site_count";
+                    $placeholders .= ", ?, ?, ?";
+                    $values[] = !empty($multisite['is_multisite']) ? 1 : 0;
+                    $values[] = $multisite['network_name'] ?? null;
+                    $values[] = (int)($multisite['site_count'] ?? 0);
+                }
+
+                if ($this->site_metrics_has_column('pending_updates_data')) {
+                    $columns .= ", pending_updates_data";
+                    $placeholders .= ", ?";
+                    $values[] = $pending_updates_data;
+                }
+
+                // Save metrics
+                $stmt = $this->db->prepare("
+                    INSERT INTO site_metrics 
+                    ($columns) 
+                    VALUES ($placeholders)
+                ");
+                $stmt->execute($values);
 
                 // Update site last sync
                 $stmt = $this->db->prepare("UPDATE sites SET last_sync = CURRENT_TIMESTAMP WHERE id = ?");
@@ -294,5 +321,16 @@ class SiteController {
         $message .= " Checked URL: $api_url";
 
         return $message;
+    }
+
+    private function site_metrics_has_column($column) {
+        static $columns = null;
+
+        if ($columns === null) {
+            $stmt = $this->db->query("SHOW COLUMNS FROM site_metrics");
+            $columns = array_column($stmt->fetchAll(), 'Field');
+        }
+
+        return in_array($column, $columns, true);
     }
 }

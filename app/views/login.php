@@ -9,16 +9,16 @@
 </head>
 <body class="auth-page">
     <div class="card auth-card">
-        <div style="text-align: center; margin-bottom: 32px;">
-            <div class="logo" style="justify-content: center; font-size: 24px; margin-bottom: 12px;">
+        <div class="auth-header">
+            <div class="logo auth-logo">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
                 <span>web-manager</span>
             </div>
-            <p style="color: var(--text-muted);">Sign in to your account</p>
+            <p class="auth-copy">Sign in to your account</p>
         </div>
 
         <?php if (isset($error)): ?>
-            <div style="background: #fee2e2; color: #b91c1c; padding: 12px; border-radius: var(--radius); margin-bottom: 20px; font-size: 14px;">
+            <div class="auth-error">
                 <?php echo $error; ?>
             </div>
         <?php endif; ?>
@@ -32,10 +32,10 @@
                 <label for="password">Password</label>
                 <input type="password" name="password" id="password" class="form-control" required>
             </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; margin-top: 10px;">Sign In</button>
+            <button type="submit" class="btn btn-primary auth-submit">Sign In</button>
         </form>
 
-        <div style="margin-top: 32px; text-align: center; font-size: 12px; color: var(--text-muted);">
+        <div class="auth-footer">
             <p>&copy; <?php echo date('Y'); ?> web-manager. All rights reserved.</p>
         </div>
     </div>

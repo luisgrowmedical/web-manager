@@ -1,4 +1,4 @@
-<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+<div class="settings-users-grid">
     <!-- Add User Form -->
     <div>
         <div class="card">
@@ -28,9 +28,9 @@
                 <div class="form-group">
                     <label for="avatar">Profile Image</label>
                     <input type="file" name="avatar" id="avatar" class="form-control" accept="image/*">
-                    <small style="color: var(--text-muted); font-size: 11px;">Optional. JPG, PNG or GIF.</small>
+                    <small class="form-help">Optional. JPG, PNG, or GIF.</small>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Create User</button>
+                <button type="submit" class="btn btn-primary btn-block">Create User</button>
             </form>
         </div>
     </div>
@@ -51,17 +51,19 @@
                     <tbody>
                         <?php foreach ($users as $u): ?>
                             <tr>
-                                <td style="display: flex; align-items: center; gap: 12px;">
+                                <td>
+                                    <div class="user-cell">
                                     <?php if ($u['avatar']): ?>
-                                        <img src="<?php echo $u['avatar']; ?>" alt="" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid #e5e7eb;">
+                                        <img src="<?php echo $u['avatar']; ?>" alt="" class="avatar avatar-md avatar-border">
                                     <?php else: ?>
-                                        <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; text-transform: uppercase;">
+                                        <div class="avatar avatar-md avatar-initial">
                                             <?php echo substr($u['username'], 0, 1); ?>
                                         </div>
                                     <?php endif; ?>
                                     <div>
                                         <strong><?php echo $u['username']; ?></strong><br>
-                                        <small style="color: var(--text-muted);"><?php echo $u['email']; ?></small>
+                                        <small class="muted-text"><?php echo $u['email']; ?></small>
+                                    </div>
                                     </div>
                                 </td>
                                 <td>
@@ -70,10 +72,10 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <div style="display: flex; gap: 8px;">
-                                        <a href="/web-manager/public/index.php?route=admin&action=access&id=<?php echo $u['id']; ?>" class="btn btn-outline" style="padding: 4px 12px; font-size: 11px;">Site Access</a>
+                                    <div class="row-actions">
+                                        <a href="/web-manager/public/index.php?route=admin&action=access&id=<?php echo $u['id']; ?>" class="btn btn-outline btn-xs">Site Access</a>
                                         <?php if ($u['id'] != $_SESSION['user_id']): ?>
-                                            <a href="/web-manager/public/index.php?route=admin&action=delete_user&id=<?php echo $u['id']; ?>" class="btn btn-outline" style="padding: 4px 12px; font-size: 11px; color: #dc2626; border-color: #fecaca;" onclick="return confirm('Are you sure you want to delete this user?')">Delete</a>
+                                            <a href="/web-manager/public/index.php?route=admin&action=delete_user&id=<?php echo $u['id']; ?>" class="btn btn-outline btn-xs btn-danger-outline" onclick="return confirm('Are you sure you want to delete this user?')">Delete</a>
                                         <?php endif; ?>
                                     </div>
                                 </td>

@@ -1,12 +1,12 @@
-<div style="max-width: 600px; margin: 0 auto;">
+<div class="page-narrow">
     <div class="card">
-        <h2 style="margin-bottom: 24px;">Connection Details</h2>
-        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">
+        <h2>Connection Details</h2>
+        <p class="section-copy">
             Enter the details from your WordPress site's <strong>web-manager Connector</strong> plugin.
         </p>
 
         <form action="/web-manager/public/index.php?route=sites&action=add" method="POST">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-grid">
                 <div class="form-group">
                     <label for="name">Site Name</label>
                     <input type="text" name="name" id="name" class="form-control" placeholder="e.g. My Awesome Blog" required>
@@ -18,7 +18,7 @@
             </div>
 
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-grid">
             <div class="form-group">
                 <label for="country">Country</label>
                 <select name="country" id="country" class="form-control" data-country-select onchange="updateStates()">
@@ -30,7 +30,7 @@
                         <?php echo wm_country_option('Argentina'); ?>
                         <?php echo wm_country_option('USA', 'United States'); ?>
                     </optgroup>
-                    <optgroup label="All Spanish Speaking">
+                    <optgroup label="Spanish-Speaking Countries">
                         <?php echo wm_country_option('Bolivia'); ?>
                         <?php echo wm_country_option('Chile'); ?>
                         <?php echo wm_country_option('Costa Rica'); ?>
@@ -68,7 +68,7 @@
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-grid">
             <div class="form-group" id="city-container">
                 <label for="city">City</label>
                 <select name="city" id="city" class="form-control" disabled>
@@ -113,7 +113,7 @@
             </div>
         </div>
 
-        <div class="form-group" style="margin-top: 16px;">
+        <div class="form-group form-group-offset">
             <label for="api_key">API Key</label>
             <input type="text" name="api_key" id="api_key" class="form-control" required placeholder="Paste the key from the WP plugin">
         </div>
@@ -162,7 +162,7 @@
             const cityContainer = document.getElementById('city-container');
 
             if (country === "Mexico") {
-                // Show Dropdown for Mexico
+                // Use predefined locations for Mexico.
                 stateContainer.innerHTML = '<label for="state">State / Province</label>' +
                     '<select name="state" id="state" class="form-control" onchange="updateCities()">' +
                     '<option value="">Select State</option></select>';
@@ -179,7 +179,7 @@
                     '<select name="city" id="city" class="form-control" disabled>' +
                     '<option value="">Select City</option></select>';
             } else {
-                // All other countries: Switch to Text Inputs
+                // Use text inputs for all other countries.
                 stateContainer.innerHTML = '<label for="state">State / Province</label>' +
                     '<input type="text" name="state" id="state" class="form-control" placeholder="Type state...">';
                 
@@ -214,16 +214,16 @@
         }
         </script>
 
-            <div style="margin-top: 32px; display: flex; gap: 12px;">
-                <button type="submit" class="btn btn-primary" style="flex: 1;">Connect Site</button>
-                <a href="/web-manager/public/index.php?route=sites" class="btn btn-outline" style="flex: 1;">Cancel</a>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Connect Site</button>
+                <a href="/web-manager/public/index.php?route=sites" class="btn btn-outline">Cancel</a>
             </div>
         </form>
     </div>
 
-    <div class="card" style="background: #f0fdf4; border: 1px solid #bcf0da;">
-        <h3 style="font-size: 14px; color: #166534; margin-bottom: 8px;">How to connect?</h3>
-        <ol style="font-size: 13px; color: #166534; padding-left: 20px;">
+    <div class="card help-card">
+        <h3 class="help-title">How to connect?</h3>
+        <ol class="help-list">
             <li>Install the <strong>web-manager Connector</strong> plugin on your WordPress.</li>
             <li>Go to the "web-manager" menu in your WordPress Admin.</li>
             <li>Copy the <strong>Site URL</strong> and <strong>API Key</strong>.</li>

@@ -3,17 +3,18 @@
  * Plugin Name: web-manager
  * Plugin URI: https://localhost/web-manager
  * Description: Connects your WordPress site to the web-manager platform.
- * Version: 1.1.6
+ * Version: 1.1.8
  * Author: web-manager Team
  * Text Domain: web-manager
  * Requires at least: 5.8
  * Requires PHP: 7.4
+ * Tested up to: 6.5
  */
 
 if (!defined('ABSPATH')) exit;
 
 if (!defined('WEB_MANAGER_CONNECTOR_VERSION')) {
-    define('WEB_MANAGER_CONNECTOR_VERSION', '1.1.6');
+    define('WEB_MANAGER_CONNECTOR_VERSION', '1.1.8');
 }
 if (!defined('WEB_MANAGER_CONNECTOR_FILE')) {
     define('WEB_MANAGER_CONNECTOR_FILE', __FILE__);
@@ -26,6 +27,9 @@ if (!defined('WEB_MANAGER_CONNECTOR_URL')) {
 }
 if (!defined('WEB_MANAGER_CONNECTOR_MIN_PHP')) {
     define('WEB_MANAGER_CONNECTOR_MIN_PHP', '7.4');
+}
+if (!defined('WEB_MANAGER_CONNECTOR_PLATFORM_URL')) {
+    define('WEB_MANAGER_CONNECTOR_PLATFORM_URL', 'http://localhost/web-manager');
 }
 
 if (!function_exists('web_manager_connector_log')) {
@@ -55,6 +59,7 @@ if (!function_exists('web_manager_connector_dependency_errors')) {
         foreach ([
             WEB_MANAGER_CONNECTOR_PATH . 'includes/class-api-handler.php',
             WEB_MANAGER_CONNECTOR_PATH . 'includes/class-admin-panel.php',
+            WEB_MANAGER_CONNECTOR_PATH . 'includes/class-plugin-updater.php',
         ] as $required_file) {
             if (!is_readable($required_file)) {
                 $errors[] = 'Missing or unreadable plugin file: ' . str_replace(WEB_MANAGER_CONNECTOR_PATH, '', $required_file);
@@ -134,6 +139,7 @@ if (!function_exists('web_manager_connector_bootstrap')) {
 
         require_once WEB_MANAGER_CONNECTOR_PATH . 'includes/class-api-handler.php';
         require_once WEB_MANAGER_CONNECTOR_PATH . 'includes/class-admin-panel.php';
+        require_once WEB_MANAGER_CONNECTOR_PATH . 'includes/class-plugin-updater.php';
 
         if (class_exists('Web_Manager_API_Handler', false)) {
             new Web_Manager_API_Handler();
@@ -145,6 +151,12 @@ if (!function_exists('web_manager_connector_bootstrap')) {
             new Web_Manager_Admin_Panel(WEB_MANAGER_CONNECTOR_URL, WEB_MANAGER_CONNECTOR_VERSION);
         } else {
             $errors[] = 'Admin panel class was not loaded.';
+        }
+
+        if (class_exists('Web_Manager_Plugin_Updater', false)) {
+            new Web_Manager_Plugin_Updater(WEB_MANAGER_CONNECTOR_FILE, WEB_MANAGER_CONNECTOR_VERSION);
+        } else {
+            $errors[] = 'Plugin updater class was not loaded.';
         }
 
         if (!empty($errors)) {

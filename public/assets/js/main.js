@@ -59,7 +59,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     enhanceCountrySelects();
+    initDashboardUpdatesModule();
 });
+
+function initDashboardUpdatesModule() {
+    const modules = document.querySelectorAll('[data-updates-module]');
+
+    modules.forEach(module => {
+        const tabs = module.querySelectorAll('[data-updates-tab]');
+        const panels = module.querySelectorAll('[data-updates-panel]');
+
+        const updateCount = type => {
+            const checks = Array.from(module.querySelectorAll(`.updates-item-check[data-updates-item="${type}"]`));
+            const selected = checks.filter(check => check.checked).length;
+            const counter = module.querySelector(`[data-updates-selected-count="${type}"]`);
+            const selectAll = module.querySelector(`[data-updates-select-all="${type}"]`);
+
+            if (counter) {
+                counter.textContent = `${selected} selected`;
+            }
+
+            if (selectAll) {
+                selectAll.checked = checks.length > 0 && selected === checks.length;
+                selectAll.indeterminate = selected > 0 && selected < checks.length;
+            }
+        };
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const type = tab.dataset.updatesTab;
+
+                tabs.forEach(item => {
+                    const isActive = item === tab;
+                    item.classList.toggle('active', isActive);
+                    item.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+
+                panels.forEach(panel => {
+                    panel.classList.toggle('active', panel.dataset.updatesPanel === type);
+                });
+            });
+        });
+
+        module.querySelectorAll('.updates-select-all').forEach(selectAll => {
+            selectAll.addEventListener('change', () => {
+                const type = selectAll.dataset.updatesSelectAll;
+                module.querySelectorAll(`.updates-item-check[data-updates-item="${type}"]`).forEach(check => {
+                    check.checked = selectAll.checked;
+                });
+                updateCount(type);
+            });
+        });
+
+        module.querySelectorAll('.updates-item-check').forEach(check => {
+            check.addEventListener('change', () => updateCount(check.dataset.updatesItem));
+        });
+
+        ['plugins', 'themes', 'wordpress'].forEach(updateCount);
+    });
+}
 
 function enhanceCountrySelects() {
     const countrySelects = document.querySelectorAll('select[data-country-select]');

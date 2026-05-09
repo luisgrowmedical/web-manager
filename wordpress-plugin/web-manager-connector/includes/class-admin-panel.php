@@ -9,6 +9,7 @@ if (!class_exists('Web_Manager_Admin_Panel', false)) {
 class Web_Manager_Admin_Panel {
 
     private $option_name = 'web_manager_api_key';
+    private $platform_option = 'web_manager_platform_url';
     private $plugin_url;
     private $version;
 
@@ -63,12 +64,24 @@ class Web_Manager_Admin_Panel {
 
         if (isset($_POST['web_manager_regenerate']) && check_admin_referer('web_manager_action')) {
             update_option($this->option_name, $this->generate_api_key(), false);
+            delete_site_transient('web_manager_connector_update_manifest');
             add_settings_error('web_manager', 'regenerated', 'API Key has been regenerated.', 'updated');
+        }
+
+        if (isset($_POST['web_manager_save_settings']) && check_admin_referer('web_manager_action')) {
+            $platform_url = isset($_POST['web_manager_platform_url']) ? esc_url_raw(wp_unslash($_POST['web_manager_platform_url'])) : '';
+            update_option($this->platform_option, untrailingslashit($platform_url), false);
+            delete_site_transient('web_manager_connector_update_manifest');
+            add_settings_error('web_manager', 'settings_saved', 'Connector settings saved.', 'updated');
         }
 
         // Default key
         if (!get_option($this->option_name)) {
             update_option($this->option_name, $this->generate_api_key(), false);
+        }
+
+        if (!get_option($this->platform_option) && defined('WEB_MANAGER_CONNECTOR_PLATFORM_URL')) {
+            update_option($this->platform_option, untrailingslashit(WEB_MANAGER_CONNECTOR_PLATFORM_URL), false);
         }
     }
 
@@ -90,6 +103,7 @@ class Web_Manager_Admin_Panel {
         }
 
         $api_key = get_option($this->option_name);
+        $platform_url = get_option($this->platform_option, defined('WEB_MANAGER_CONNECTOR_PLATFORM_URL') ? WEB_MANAGER_CONNECTOR_PLATFORM_URL : '');
         $site_url = home_url();
         $endpoint = home_url('/wp-json/web-manager/v1/stats');
         $diagnostics = $this->get_diagnostics($endpoint, $api_key);
@@ -152,6 +166,17 @@ class Web_Manager_Admin_Panel {
                         </div>
                         <p class="field-desc">This endpoint is authorized with the API Key. If a REST-blocking plugin is active, allow the web-manager/v1 namespace.</p>
                     </div>
+
+                    <form method="post" action="" class="web-manager-field-group">
+                        <?php wp_nonce_field('web_manager_action'); ?>
+                        <input type="hidden" name="web_manager_save_settings" value="1">
+                        <label>web-manager Platform URL</label>
+                        <div class="copy-input">
+                            <input type="url" name="web_manager_platform_url" value="<?php echo esc_attr($platform_url); ?>" id="web-manager-platform-url" placeholder="https://example.com/web-manager">
+                            <button type="submit" class="web-manager-copy-btn">Save</button>
+                        </div>
+                        <p class="field-desc">The connector uses this URL to check for plugin updates from the central app.</p>
+                    </form>
 
                     <div class="web-manager-actions">
                         <form method="post" action="">

@@ -55,6 +55,11 @@ CREATE TABLE IF NOT EXISTS site_metrics (
     site_weight VARCHAR(50), -- e.g. "150MB"
     images_count INT DEFAULT 0,
     updates_count INT DEFAULT 0,
+    pending_updates_data LONGTEXT,
+    connector_version VARCHAR(50) DEFAULT NULL,
+    is_multisite TINYINT(1) DEFAULT 0,
+    multisite_network_name VARCHAR(255) DEFAULT NULL,
+    multisite_site_count INT DEFAULT 0,
     plugin_updates_count INT DEFAULT 0,
     theme_updates_count INT DEFAULT 0,
     sync_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

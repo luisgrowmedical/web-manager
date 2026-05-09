@@ -118,6 +118,7 @@ class Web_Manager_API_Handler {
         return [
             'site_name' => get_bloginfo('name'),
             'site_url'  => home_url(),
+            'multisite' => $this->get_multisite_data(),
             'pages'     => (int)$pages->publish,
             'posts'     => (int)$posts->publish,
             'drafts'    => (int)$drafts,
@@ -129,15 +130,50 @@ class Web_Manager_API_Handler {
                 'active' => is_array($active_plugins) ? count($active_plugins) : 0,
                 'total'  => count($all_plugins)
             ],
+            'connector' => [
+                'slug' => 'web-manager-connector',
+                'file' => defined('WEB_MANAGER_CONNECTOR_FILE') ? plugin_basename(WEB_MANAGER_CONNECTOR_FILE) : 'web-manager-connector/web-manager-connector.php',
+                'version' => defined('WEB_MANAGER_CONNECTOR_VERSION') ? WEB_MANAGER_CONNECTOR_VERSION : '',
+                'platform_url' => get_option('web_manager_platform_url', defined('WEB_MANAGER_CONNECTOR_PLATFORM_URL') ? WEB_MANAGER_CONNECTOR_PLATFORM_URL : '')
+            ],
             'weight'    => $this->get_site_weight(),
             'images'    => (int)$images->inherit,
             'updates'   => $updates
         ];
     }
 
+    private function get_multisite_data() {
+        $is_multisite = is_multisite();
+        $network_name = get_bloginfo('name');
+        $site_count = 1;
+
+        if ($is_multisite) {
+            $network = function_exists('get_network') ? get_network() : null;
+            if ($network && !empty($network->site_name)) {
+                $network_name = $network->site_name;
+            }
+
+            if (function_exists('get_sites')) {
+                $site_count = count(get_sites([
+                    'fields' => 'ids',
+                    'number' => 0
+                ]));
+            }
+        }
+
+        return [
+            'is_multisite' => $is_multisite,
+            'network_name' => $network_name,
+            'site_count' => (int)$site_count
+        ];
+    }
+
     private function get_pending_updates_count() {
         if (!function_exists('wp_version_check') || !function_exists('wp_update_plugins') || !function_exists('wp_update_themes')) {
             require_once ABSPATH . 'wp-includes/update.php';
+        }
+        if (!function_exists('get_core_updates') && file_exists(ABSPATH . 'wp-admin/includes/update.php')) {
+            require_once ABSPATH . 'wp-admin/includes/update.php';
         }
 
         wp_version_check();
@@ -149,14 +185,50 @@ class Web_Manager_API_Handler {
         $core_updates_count = 0;
 
         $plugin_updates = get_site_transient('update_plugins');
+        $plugin_update_items = [];
         if (isset($plugin_updates->response) && is_array($plugin_updates->response)) {
             $plugin_updates_count = count($plugin_updates->response);
+            if (!function_exists('get_plugins')) {
+                require_once ABSPATH . 'wp-admin/includes/plugin.php';
+            }
+            $installed_plugins = get_plugins();
+
+            foreach ($plugin_updates->response as $plugin_file => $plugin_update) {
+                $plugin_data = isset($installed_plugins[$plugin_file]) ? $installed_plugins[$plugin_file] : [];
+                $plugin_update_items[] = [
+                    'file' => $plugin_file,
+                    'slug' => isset($plugin_update->slug) ? $plugin_update->slug : dirname($plugin_file),
+                    'name' => $plugin_data['Name'] ?? (isset($plugin_update->slug) ? $plugin_update->slug : $plugin_file),
+                    'current_version' => $plugin_data['Version'] ?? '',
+                    'new_version' => $plugin_update->new_version ?? '',
+                    'icon' => $this->pick_update_icon($plugin_update->icons ?? null)
+                ];
+            }
         }
 
         $theme_updates = get_site_transient('update_themes');
+        $theme_update_items = [];
         if (isset($theme_updates->response) && is_array($theme_updates->response)) {
             $theme_updates_count = count($theme_updates->response);
+            $installed_themes = wp_get_themes();
+
+            foreach ($theme_updates->response as $stylesheet => $theme_update) {
+                $theme = $installed_themes[$stylesheet] ?? null;
+                $theme_update_items[] = [
+                    'slug' => $stylesheet,
+                    'name' => $theme ? $theme->get('Name') : $stylesheet,
+                    'current_version' => $theme ? $theme->get('Version') : '',
+                    'new_version' => is_array($theme_update) ? ($theme_update['new_version'] ?? '') : ($theme_update->new_version ?? ''),
+                    'icon' => $theme && method_exists($theme, 'get_screenshot') ? $theme->get_screenshot() : null
+                ];
+            }
         }
+
+        $core_update_item = [
+            'update_available' => false,
+            'current_version' => $GLOBALS['wp_version'] ?? get_bloginfo('version'),
+            'new_version' => ''
+        ];
 
         if (function_exists('get_core_updates')) {
             $core_updates = get_core_updates();
@@ -164,6 +236,11 @@ class Web_Manager_API_Handler {
                 foreach ($core_updates as $core_update) {
                     if (isset($core_update->response) && $core_update->response === 'upgrade') {
                         $core_updates_count = 1;
+                        $core_update_item = [
+                            'update_available' => true,
+                            'current_version' => $GLOBALS['wp_version'] ?? get_bloginfo('version'),
+                            'new_version' => $core_update->version ?? ''
+                        ];
                         break;
                     }
                 }
@@ -174,8 +251,36 @@ class Web_Manager_API_Handler {
             'total' => $plugin_updates_count + $theme_updates_count + $core_updates_count,
             'plugins' => $plugin_updates_count,
             'themes' => $theme_updates_count,
-            'core' => $core_updates_count
+            'core' => $core_updates_count,
+            'details' => [
+                'plugins' => $plugin_update_items,
+                'themes' => $theme_update_items,
+                'wordpress' => $core_update_item
+            ]
         ];
+    }
+
+    private function pick_update_icon($icons) {
+        if (empty($icons)) {
+            return null;
+        }
+
+        if (is_object($icons)) {
+            $icons = (array)$icons;
+        }
+
+        if (!is_array($icons)) {
+            return null;
+        }
+
+        foreach (['svg', '2x', '1x', 'default'] as $key) {
+            if (!empty($icons[$key])) {
+                return $icons[$key];
+            }
+        }
+
+        $first = reset($icons);
+        return is_string($first) ? $first : null;
     }
 
     private function get_site_weight() {

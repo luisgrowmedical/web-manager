@@ -13,14 +13,23 @@ class DashboardController {
     public function index() {
         $user_id = $_SESSION['user_id'];
         $is_admin = $_SESSION['role'] === 'admin';
+        $has_pending_updates_data = $this->site_metrics_has_column('pending_updates_data');
+        $has_connector_version = $this->site_metrics_has_column('connector_version');
+        $has_multisite_data = $this->site_metrics_has_column('is_multisite');
+        $pending_updates_select = $has_pending_updates_data ? ', m.pending_updates_data' : ', NULL AS pending_updates_data';
+        $pending_updates_inner_select = $has_pending_updates_data ? ', m1.pending_updates_data' : '';
+        $connector_version_select = $has_connector_version ? ', m.connector_version' : ', NULL AS connector_version';
+        $connector_version_inner_select = $has_connector_version ? ', m1.connector_version' : '';
+        $multisite_select = $has_multisite_data ? ', m.is_multisite, m.multisite_network_name, m.multisite_site_count' : ', 0 AS is_multisite, NULL AS multisite_network_name, 0 AS multisite_site_count';
+        $multisite_inner_select = $has_multisite_data ? ', m1.is_multisite, m1.multisite_network_name, m1.multisite_site_count' : '';
 
         // Get sites the user has access to
         if ($is_admin) {
             $stmt = $this->db->query("
-                SELECT s.*, m.updates_count, m.plugin_updates_count, m.theme_updates_count, l.sync_status
+                SELECT s.*, m.updates_count, m.plugin_updates_count, m.theme_updates_count {$pending_updates_select} {$connector_version_select} {$multisite_select}, l.sync_status
                 FROM sites s
                 LEFT JOIN (
-                    SELECT m1.site_id, m1.updates_count, m1.plugin_updates_count, m1.theme_updates_count
+                    SELECT m1.site_id, m1.updates_count, m1.plugin_updates_count, m1.theme_updates_count {$pending_updates_inner_select} {$connector_version_inner_select} {$multisite_inner_select}
                     FROM site_metrics m1
                     INNER JOIN (
                         SELECT site_id, MAX(id) as metric_id
@@ -42,11 +51,11 @@ class DashboardController {
             ");
         } else {
             $stmt = $this->db->prepare("
-                SELECT s.*, m.updates_count, m.plugin_updates_count, m.theme_updates_count, l.sync_status
+                SELECT s.*, m.updates_count, m.plugin_updates_count, m.theme_updates_count {$pending_updates_select} {$connector_version_select} {$multisite_select}, l.sync_status
                 FROM sites s
                 JOIN site_user_access sua ON s.id = sua.site_id
                 LEFT JOIN (
-                    SELECT m1.site_id, m1.updates_count, m1.plugin_updates_count, m1.theme_updates_count
+                    SELECT m1.site_id, m1.updates_count, m1.plugin_updates_count, m1.theme_updates_count {$pending_updates_inner_select} {$connector_version_inner_select} {$multisite_inner_select}
                     FROM site_metrics m1
                     INNER JOIN (
                         SELECT site_id, MAX(id) as metric_id
@@ -177,10 +186,253 @@ class DashboardController {
             'stats' => $stats,
             'attention_sites' => $attention_sites,
             'recent_activity' => array_slice($recent_activity, 0, 6),
+            'available_updates' => $this->build_available_updates($sites),
+            'multisite_networks' => $this->build_multisite_networks($sites),
+            'connector_update' => $this->build_connector_update_status($sites),
             'dashboard_meta' => [
                 'stale_sync_days' => 7,
-                'core_updates_available' => false
+                'core_updates_available' => false,
+                'has_pending_updates_data' => $has_pending_updates_data,
+                'has_connector_version' => $has_connector_version,
+                'has_multisite_data' => $has_multisite_data,
+                'safe_update_ready' => false
             ]
         ]);
+    }
+
+    private function site_metrics_has_column($column) {
+        static $columns = null;
+
+        if ($columns === null) {
+            $stmt = $this->db->query("SHOW COLUMNS FROM site_metrics");
+            $columns = array_column($stmt->fetchAll(), 'Field');
+        }
+
+        return in_array($column, $columns, true);
+    }
+
+    private function build_available_updates($sites) {
+        $updates = [
+            'plugins' => [],
+            'themes' => [],
+            'wordpress' => []
+        ];
+
+        foreach ($sites as $site) {
+            if (empty($site['pending_updates_data'])) {
+                continue;
+            }
+
+            $pending = json_decode($site['pending_updates_data'], true);
+            if (!is_array($pending)) {
+                continue;
+            }
+
+            foreach (($pending['plugins'] ?? []) as $plugin) {
+                if (!is_array($plugin)) {
+                    continue;
+                }
+
+                $key = $plugin['slug'] ?? $plugin['file'] ?? $plugin['name'] ?? null;
+                if (!$key) {
+                    continue;
+                }
+
+                $item_key = 'plugin:' . $key;
+                if (!isset($updates['plugins'][$item_key])) {
+                    $updates['plugins'][$item_key] = [
+                        'id' => md5($item_key),
+                        'name' => $plugin['name'] ?? $key,
+                        'icon' => $plugin['icon'] ?? null,
+                        'current_versions' => [],
+                        'available_versions' => [],
+                        'site_ids' => [],
+                        'sites' => []
+                    ];
+                }
+
+                $this->add_update_site($updates['plugins'][$item_key], $site, $plugin['current_version'] ?? null, $plugin['new_version'] ?? null);
+            }
+
+            foreach (($pending['themes'] ?? []) as $theme) {
+                if (!is_array($theme)) {
+                    continue;
+                }
+
+                $key = $theme['slug'] ?? $theme['name'] ?? null;
+                if (!$key) {
+                    continue;
+                }
+
+                $item_key = 'theme:' . $key;
+                if (!isset($updates['themes'][$item_key])) {
+                    $updates['themes'][$item_key] = [
+                        'id' => md5($item_key),
+                        'name' => $theme['name'] ?? $key,
+                        'icon' => $theme['icon'] ?? null,
+                        'current_versions' => [],
+                        'available_versions' => [],
+                        'site_ids' => [],
+                        'sites' => []
+                    ];
+                }
+
+                $this->add_update_site($updates['themes'][$item_key], $site, $theme['current_version'] ?? null, $theme['new_version'] ?? null);
+            }
+
+            $core = $pending['wordpress'] ?? $pending['core'] ?? null;
+            if (is_array($core) && !empty($core['update_available'])) {
+                $site_id = (int)$site['id'];
+                $updates['wordpress']['site:' . $site_id] = [
+                    'id' => md5('wordpress:' . $site_id),
+                    'name' => $site['name'],
+                    'icon' => $this->site_icon_url($site),
+                    'current_version' => $core['current_version'] ?? 'Unknown',
+                    'new_version' => $core['new_version'] ?? 'Unknown',
+                    'site_count' => 1,
+                    'sites' => [$site['name']]
+                ];
+            }
+        }
+
+        foreach (['plugins', 'themes'] as $type) {
+            foreach ($updates[$type] as &$item) {
+                $item['current_version'] = $this->format_versions($item['current_versions']);
+                $item['new_version'] = $this->format_versions($item['available_versions']);
+                $item['site_count'] = count($item['site_ids']);
+                unset($item['current_versions'], $item['available_versions'], $item['site_ids']);
+            }
+            unset($item);
+            $updates[$type] = array_values($updates[$type]);
+        }
+
+        $updates['wordpress'] = array_values($updates['wordpress']);
+
+        return $updates;
+    }
+
+    private function add_update_site(&$item, $site, $current_version, $new_version) {
+        $site_id = (int)$site['id'];
+        $item['site_ids'][$site_id] = true;
+        $item['sites'][$site_id] = $site['name'];
+
+        if ($current_version) {
+            $item['current_versions'][(string)$current_version] = true;
+        }
+        if ($new_version) {
+            $item['available_versions'][(string)$new_version] = true;
+        }
+    }
+
+    private function format_versions($versions) {
+        $values = array_keys($versions);
+        if (empty($values)) {
+            return 'Unknown';
+        }
+
+        return implode(', ', array_slice($values, 0, 3)) . (count($values) > 3 ? ' +' . (count($values) - 3) : '');
+    }
+
+    private function site_icon_url($site) {
+        $domain = parse_url($site['url'] ?? '', PHP_URL_HOST);
+        if (!$domain) {
+            return null;
+        }
+
+        return 'https://www.google.com/s2/favicons?domain=' . rawurlencode($domain) . '&sz=64';
+    }
+
+    private function build_multisite_networks($sites) {
+        $networks = [];
+
+        foreach ($sites as $site) {
+            if (empty($site['is_multisite'])) {
+                continue;
+            }
+
+            $network_name = trim((string)($site['multisite_network_name'] ?? ''));
+            if ($network_name === '') {
+                $network_name = $site['name'] ?? 'WordPress Network';
+            }
+
+            $key = strtolower($network_name);
+            if (!isset($networks[$key])) {
+                $networks[$key] = [
+                    'name' => $network_name,
+                    'site_count' => (int)($site['multisite_site_count'] ?? 0),
+                    'connected_sites' => 0,
+                    'status' => 'Connected',
+                    'status_class' => 'badge-success'
+                ];
+            }
+
+            $networks[$key]['connected_sites']++;
+            $networks[$key]['site_count'] = max($networks[$key]['site_count'], (int)($site['multisite_site_count'] ?? 0));
+
+            if (($site['sync_status'] ?? null) === 'error') {
+                $networks[$key]['status'] = 'Sync failed';
+                $networks[$key]['status_class'] = 'badge-danger';
+            } elseif (empty($site['last_sync']) && $networks[$key]['status_class'] !== 'badge-danger') {
+                $networks[$key]['status'] = 'Not connected';
+                $networks[$key]['status_class'] = 'badge-warning';
+            }
+        }
+
+        return array_values($networks);
+    }
+
+    private function build_connector_update_status($sites) {
+        $available_version = $this->connector_available_version();
+        $items = [];
+        $outdated = 0;
+        $unknown = 0;
+
+        foreach ($sites as $site) {
+            $installed_version = $site['connector_version'] ?? null;
+            $status = 'ok';
+
+            if (!$installed_version) {
+                $status = 'unknown';
+                $unknown++;
+            } elseif ($available_version && version_compare($installed_version, $available_version, '<')) {
+                $status = 'outdated';
+                $outdated++;
+            }
+
+            $items[] = [
+                'site_id' => (int)$site['id'],
+                'site_name' => $site['name'],
+                'site_url' => $site['url'],
+                'installed_version' => $installed_version ?: 'Unknown',
+                'available_version' => $available_version ?: 'Unknown',
+                'status' => $status,
+                'last_sync' => $site['last_sync'] ?? null
+            ];
+        }
+
+        return [
+            'available_version' => $available_version ?: 'Unknown',
+            'outdated_count' => $outdated,
+            'unknown_count' => $unknown,
+            'sites' => $items
+        ];
+    }
+
+    private function connector_available_version() {
+        $file = dirname(__DIR__, 2) . '/wordpress-plugin/web-manager-connector/web-manager-connector.php';
+        if (!is_readable($file)) {
+            return null;
+        }
+
+        $contents = file_get_contents($file, false, null, 0, 8192);
+        if ($contents === false) {
+            return null;
+        }
+
+        if (preg_match('/^\s*\*\s*Version:\s*(.+)$/mi', $contents, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return null;
     }
 }
